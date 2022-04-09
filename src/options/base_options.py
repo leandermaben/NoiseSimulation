@@ -45,15 +45,16 @@ class BaseOptions():
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
         parser.add_argument('--load_size_h', type=int, default=256, help='scale images(height) to this size')
         parser.add_argument('--load_size_w', type=int, default=256, help='scale images(width) to this size')
-        parser.add_argument('--crop_size', type=int, default=256, help='then crop to this size')
+        parser.add_argument('--crop_size_h', type=int, default=256, help='then crop to this size') #Changed Handle it.
+        parser.add_argument('--crop_size_w', type=int, default=256, help='then crop to this size') #Changed. Handle it.
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
         parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
         parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data augmentation')
         parser.add_argument('--display_winsize', type=int, default=256, help='display window size for both visdom and HTML')
         parser.add_argument('--data_load_order', type=str, default='unaligned', choices=['aligned','unaligned'], help='Method to load spectrograms from different domains.')
         parser.add_argument('--use_mask', action='store_true', help='Mask inputs when training.')
-        parser.add_argument('--max_mask_len', type=int, default=25, help = "Max length of mask if --use_mask option is used.")
-        parser.add_argument('--use_phase', action='store_true', help='Use phase spectogram in model.')
+        parser.add_argument('--max_mask_len', type=int, default=25, help = "Max length of mask if --use_mask option is used.") #Extra
+        parser.add_argument('--use_phase', action='store_true', help='Use phase spectogram in model.') #Extra
         
         # additional parameters
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
