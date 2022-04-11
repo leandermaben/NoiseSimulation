@@ -118,7 +118,7 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     return net
 
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[], use_mask = False):
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[], use_mask = False, no_antialias=False, no_antialias_up=False, opt=None):
     """Create a generator
 
     Parameters:
@@ -158,19 +158,19 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    elif netG == 'our':
+    elif netG == 'resnet_attention':
         if use_mask:
             net = ResnetGenerator_mask(input_nc+1, output_nc, ngf, n_blocks=9)
         else:
-            net = ResnetGenerator_our(input_nc, output_nc, ngf, n_blocks=9)
-
-        
+            net = ResnetGenerator_attention(input_nc, output_nc, ngf, n_blocks=9)
+    elif netG == 'resnet_cut'
+            net = ResnetGenerator_cut(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, no_antialias=no_antialias, no_antialias_up=no_antialias_up, n_blocks=9, opt=opt)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
 
 
-def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[]):
+def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[],no_antialias=False, opt=None):
     """Create a discriminator
 
     Parameters:
@@ -205,6 +205,8 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
 
     if netD == 'basic':  # default PatchGAN classifier
         net = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer)
+    elif netD == 'basic_cut':  # default PatchGAN classifier with antialias option
+        net = NLayerDiscriminator_cut(input_nc, ndf, n_layers=3, norm_layer=norm_layer, no_antialias=no_antialias)
     elif netD == 'n_layers':  # more options
         net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
     elif netD == 'pixel':     # classify if each pixel is real or fake
@@ -213,6 +215,20 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
     return init_net(net, init_type, init_gain, gpu_ids)
 
+def define_F(input_nc, netF, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, no_antialias=False, gpu_ids=[], opt=None):
+    if netF == 'global_pool':
+        net = PoolingF()
+    elif netF == 'reshape':
+        net = ReshapeF()
+    elif netF == 'sample':
+        net = PatchSampleF(use_mlp=False, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.netF_nc)
+    elif netF == 'mlp_sample':
+        net = PatchSampleF(use_mlp=True, init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids, nc=opt.netF_nc)
+    elif netF == 'strided_conv':
+        net = StridedConvF(init_type=init_type, init_gain=init_gain, gpu_ids=gpu_ids)
+    else:
+        raise NotImplementedError('projection model name [%s] is not recognized' % netF)
+    return init_net(net, init_type, init_gain, gpu_ids)
 
 ##############################################################################
 # Classes
@@ -383,7 +399,7 @@ class ResnetGenerator(nn.Module):
         """Standard forward"""
         return self.model(input)
 
-class ResnetGenerator_our(nn.Module):
+class ResnetGenerator_attention(nn.Module):
     # initializers
     def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9):
         super(ResnetGenerator_our, self).__init__()
@@ -449,15 +465,6 @@ class ResnetGenerator_our(nn.Module):
         x = F.relu(self.conv2_norm(self.conv2(x)))
         x = F.relu(self.conv3_norm(self.conv3(x)))
         x = self.resnet_blocks(x)
-        # x = self.resnet_blocks1(x)
-        # x = self.resnet_blocks2(x)
-        # x = self.resnet_blocks3(x)
-        # x = self.resnet_blocks4(x)
-        # x = self.resnet_blocks5(x)
-        # x = self.resnet_blocks6(x)
-        # x = self.resnet_blocks7(x)
-        # x = self.resnet_blocks8(x)
-        # x = self.resnet_blocks9(x)
         x_content = F.relu(self.deconv1_norm_content(self.deconv1_content(x)))
         x_content = F.relu(self.deconv2_norm_content(self.deconv2_content(x_content)))
         x_content = F.pad(x_content, (3, 3, 3, 3), 'reflect')
@@ -516,12 +523,109 @@ class ResnetGenerator_our(nn.Module):
         output7 = image7 * attention7
         output8 = image8 * attention8
         output9 = image9 * attention9
-        # output10 = image10 * attention10
         output10 = input * attention10
 
         o=output1 + output2 + output3 + output4 + output5 + output6 + output7 + output8 + output9 + output10
 
         return o, output1, output2, output3, output4, output5, output6, output7, output8, output9, output10, attention1,attention2,attention3, attention4, attention5, attention6, attention7, attention8,attention9,attention10, image1, image2,image3,image4,image5,image6,image7,image8,image9
+
+class ResnetGenerator_cut(nn.Module):
+    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
+
+    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
+    """
+
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', no_antialias=False, no_antialias_up=False, opt=None):
+        """Construct a Resnet-based generator
+
+        Parameters:
+            input_nc (int)      -- the number of channels in input images
+            output_nc (int)     -- the number of channels in output images
+            ngf (int)           -- the number of filters in the last conv layer
+            norm_layer          -- normalization layer
+            use_dropout (bool)  -- if use dropout layers
+            n_blocks (int)      -- the number of ResNet blocks
+            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
+        """
+        assert(n_blocks >= 0)
+        super(ResnetGenerator_cut, self).__init__()
+        self.opt = opt
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        model = [nn.ReflectionPad2d(3),
+                 nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
+                 norm_layer(ngf),
+                 nn.ReLU(True)]
+
+        n_downsampling = 2
+        for i in range(n_downsampling):  # add downsampling layers
+            mult = 2 ** i
+            if(no_antialias):
+                model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                          norm_layer(ngf * mult * 2),
+                          nn.ReLU(True)]
+            else:
+                model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=1, padding=1, bias=use_bias),
+                          norm_layer(ngf * mult * 2),
+                          nn.ReLU(True),
+                          Downsample(ngf * mult * 2)]
+
+        mult = 2 ** n_downsampling
+        for i in range(n_blocks):       # add ResNet blocks
+
+            model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+
+        for i in range(n_downsampling):  # add upsampling layers
+            mult = 2 ** (n_downsampling - i)
+            if no_antialias_up:
+                model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+                                             kernel_size=3, stride=2,
+                                             padding=1, output_padding=1,
+                                             bias=use_bias),
+                          norm_layer(int(ngf * mult / 2)),
+                          nn.ReLU(True)]
+            else:
+                model += [Upsample(ngf * mult),
+                          nn.Conv2d(ngf * mult, int(ngf * mult / 2),
+                                    kernel_size=3, stride=1,
+                                    padding=1,  # output_padding=1,
+                                    bias=use_bias),
+                          norm_layer(int(ngf * mult / 2)),
+                          nn.ReLU(True)]
+        model += [nn.ReflectionPad2d(3)]
+        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+        model += [nn.Tanh()]
+
+        self.model = nn.Sequential(*model)
+
+    def forward(self, input, layers=[], encode_only=False):
+        if -1 in layers:
+            layers.append(len(self.model))
+        if len(layers) > 0:
+            feat = input
+            feats = []
+            for layer_id, layer in enumerate(self.model):
+                # print(layer_id, layer)
+                feat = layer(feat)
+                if layer_id in layers:
+                    # print("%d: adding the output of %s %d" % (layer_id, layer.__class__.__name__, feat.size(1)))
+                    feats.append(feat)
+                else:
+                    # print("%d: skipping %s %d" % (layer_id, layer.__class__.__name__, feat.size(1)))
+                    pass
+                if layer_id == layers[-1] and encode_only:
+                    # print('encoder only return features')
+                    return feats  # return intermediate features alone; stop in the last layers
+
+            return feat, feats  # return both output and intermediate features
+        else:
+            """Standard forward"""
+            fake = self.model(input)
+            return fake
+
 
 #Modification with Mask
 class ResnetGenerator_mask(nn.Module):
@@ -908,6 +1012,64 @@ class NLayerDiscriminator(nn.Module):
         """Standard forward."""
         return self.model(input)
 
+class NLayerDiscriminator_cut(nn.Module): #Same as NLayerDiscriminator but provides option for mentioning no_antialias
+    """Defines a PatchGAN discriminator"""
+
+    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, no_antialias=False):
+        """Construct a PatchGAN discriminator
+
+        Parameters:
+            input_nc (int)  -- the number of channels in input images
+            ndf (int)       -- the number of filters in the last conv layer
+            n_layers (int)  -- the number of conv layers in the discriminator
+            norm_layer      -- normalization layer
+        """
+        super(NLayerDiscriminator_cut, self).__init__()
+        if type(norm_layer) == functools.partial:  # no need to use bias as BatchNorm2d has affine parameters
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        kw = 4
+        padw = 1
+        if(no_antialias):
+            sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
+        else:
+            sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=1, padding=padw), nn.LeakyReLU(0.2, True), Downsample(ndf)]
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, n_layers):  # gradually increase the number of filters
+            nf_mult_prev = nf_mult
+            nf_mult = min(2 ** n, 8)
+            if(no_antialias):
+                sequence += [
+                    nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
+                    norm_layer(ndf * nf_mult),
+                    nn.LeakyReLU(0.2, True)
+                ]
+            else:
+                sequence += [
+                    nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=use_bias),
+                    norm_layer(ndf * nf_mult),
+                    nn.LeakyReLU(0.2, True),
+                    Downsample(ndf * nf_mult)]
+
+        nf_mult_prev = nf_mult
+        nf_mult = min(2 ** n_layers, 8)
+        sequence += [
+            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=use_bias),
+            norm_layer(ndf * nf_mult),
+            nn.LeakyReLU(0.2, True)
+        ]
+
+        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]  # output 1 channel prediction map
+        self.model = nn.Sequential(*sequence)
+
+    def forward(self, input):
+        """Standard forward."""
+        return self.model(input)
+
+
 
 class PixelDiscriminator(nn.Module):
     """Defines a 1x1 PatchGAN discriminator (pixelGAN)"""
@@ -939,3 +1101,135 @@ class PixelDiscriminator(nn.Module):
     def forward(self, input):
         """Standard forward."""
         return self.net(input)
+
+class Normalize(nn.Module):
+
+    def __init__(self, power=2):
+        super(Normalize, self).__init__()
+        self.power = power
+
+    def forward(self, x):
+        norm = x.pow(self.power).sum(1, keepdim=True).pow(1. / self.power)
+        out = x.div(norm + 1e-7)
+        return out
+
+
+class PoolingF(nn.Module):
+    def __init__(self):
+        super(PoolingF, self).__init__()
+        model = [nn.AdaptiveMaxPool2d(1)]
+        self.model = nn.Sequential(*model)
+        self.l2norm = Normalize(2)
+
+    def forward(self, x):
+        return self.l2norm(self.model(x))
+
+
+class ReshapeF(nn.Module):
+    def __init__(self):
+        super(ReshapeF, self).__init__()
+        model = [nn.AdaptiveAvgPool2d(4)]
+        self.model = nn.Sequential(*model)
+        self.l2norm = Normalize(2)
+
+    def forward(self, x):
+        x = self.model(x)
+        x_reshape = x.permute(0, 2, 3, 1).flatten(0, 2)
+        return self.l2norm(x_reshape)
+
+class StridedConvF(nn.Module):
+    def __init__(self, init_type='normal', init_gain=0.02, gpu_ids=[]):
+        super().__init__()
+        # self.conv1 = nn.Conv2d(256, 128, 3, stride=2)
+        # self.conv2 = nn.Conv2d(128, 64, 3, stride=1)
+        self.l2_norm = Normalize(2)
+        self.mlps = {}
+        self.moving_averages = {}
+        self.init_type = init_type
+        self.init_gain = init_gain
+        self.gpu_ids = gpu_ids
+
+    def create_mlp(self, x):
+        C, H = x.shape[1], x.shape[2]
+        n_down = int(np.rint(np.log2(H / 32)))
+        mlp = []
+        for i in range(n_down):
+            mlp.append(nn.Conv2d(C, max(C // 2, 64), 3, stride=2))
+            mlp.append(nn.ReLU())
+            C = max(C // 2, 64)
+        mlp.append(nn.Conv2d(C, 64, 3))
+        mlp = nn.Sequential(*mlp)
+        init_net(mlp, self.init_type, self.init_gain, self.gpu_ids)
+        return mlp
+
+    def update_moving_average(self, key, x):
+        if key not in self.moving_averages:
+            self.moving_averages[key] = x.detach()
+
+        self.moving_averages[key] = self.moving_averages[key] * 0.999 + x.detach() * 0.001
+
+    def forward(self, x, use_instance_norm=False):
+        C, H = x.shape[1], x.shape[2]
+        key = '%d_%d' % (C, H)
+        if key not in self.mlps:
+            self.mlps[key] = self.create_mlp(x)
+            self.add_module("child_%s" % key, self.mlps[key])
+        mlp = self.mlps[key]
+        x = mlp(x)
+        self.update_moving_average(key, x)
+        x = x - self.moving_averages[key]
+        if use_instance_norm:
+            x = F.instance_norm(x)
+        return self.l2_norm(x)
+
+
+class PatchSampleF(nn.Module):
+    def __init__(self, use_mlp=False, init_type='normal', init_gain=0.02, nc=256, gpu_ids=[]):
+        # potential issues: currently, we use the same patch_ids for multiple images in the batch
+        super(PatchSampleF, self).__init__()
+        self.l2norm = Normalize(2)
+        self.use_mlp = use_mlp
+        self.nc = nc  # hard-coded
+        self.mlp_init = False
+        self.init_type = init_type
+        self.init_gain = init_gain
+        self.gpu_ids = gpu_ids
+
+    def create_mlp(self, feats):
+        for mlp_id, feat in enumerate(feats):
+            input_nc = feat.shape[1]
+            mlp = nn.Sequential(*[nn.Linear(input_nc, self.nc), nn.ReLU(), nn.Linear(self.nc, self.nc)])
+            if len(self.gpu_ids) > 0:
+                mlp.cuda()
+            setattr(self, 'mlp_%d' % mlp_id, mlp)
+        init_net(self, self.init_type, self.init_gain, self.gpu_ids)
+        self.mlp_init = True
+
+    def forward(self, feats, num_patches=64, patch_ids=None):
+        return_ids = []
+        return_feats = []
+        if self.use_mlp and not self.mlp_init:
+            self.create_mlp(feats)
+        for feat_id, feat in enumerate(feats):
+            B, H, W = feat.shape[0], feat.shape[2], feat.shape[3]
+            feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)
+            if num_patches > 0:
+                if patch_ids is not None:
+                    patch_id = patch_ids[feat_id]
+                else:
+                    patch_id = torch.randperm(feat_reshape.shape[1], device=feats[0].device)
+                    patch_id = patch_id[:int(min(num_patches, patch_id.shape[0]))]  # .to(patch_ids.device)
+                x_sample = feat_reshape[:, patch_id, :].flatten(0, 1)  # reshape(-1, x.shape[1])
+            else:
+                x_sample = feat_reshape
+                patch_id = []
+            if self.use_mlp:
+                mlp = getattr(self, 'mlp_%d' % feat_id)
+                x_sample = mlp(x_sample)
+            return_ids.append(patch_id)
+            x_sample = self.l2norm(x_sample)
+
+            if num_patches == 0:
+                x_sample = x_sample.permute(0, 2, 1).reshape([B, x_sample.shape[-1], H, W])
+            return_feats.append(x_sample)
+        return return_feats, return_ids
