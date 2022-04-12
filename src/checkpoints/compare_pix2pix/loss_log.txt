@@ -1,5 +1,0 @@
-================ Training Loss (Mon Apr 11 15:08:31 2022) ================
-(epoch: 1, iters: 100, time: 0.022, data: 0.187) G_GAN: 2.504 G_L1: 34.952 D_real: 0.197 D_fake: 0.160 
-(epoch: 1, iters: 200, time: 0.050, data: 0.001) G_GAN: 2.137 G_L1: 35.893 D_real: 0.280 D_fake: 0.314 
-(epoch: 1, iters: 300, time: 0.050, data: 0.001) G_GAN: 3.870 G_L1: 33.946 D_real: 0.071 D_fake: 0.915 
-(epoch: 2, iters: 44, time: 0.064, data: 0.001) G_GAN: 2.113 G_L1: 40.166 D_real: 0.438 D_fake: 0.086 
