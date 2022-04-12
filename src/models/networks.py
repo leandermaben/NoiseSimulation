@@ -163,7 +163,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
             net = ResnetGenerator_mask(input_nc+1, output_nc, ngf, n_blocks=9)
         else:
             net = ResnetGenerator_attention(input_nc, output_nc, ngf, n_blocks=9)
-    elif netG == 'resnet_cut'
+    elif netG == 'resnet_cut':
             net = ResnetGenerator_cut(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, no_antialias=no_antialias, no_antialias_up=no_antialias_up, n_blocks=9, opt=opt)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
@@ -402,7 +402,7 @@ class ResnetGenerator(nn.Module):
 class ResnetGenerator_attention(nn.Module):
     # initializers
     def __init__(self, input_nc, output_nc, ngf=64, n_blocks=9):
-        super(ResnetGenerator_our, self).__init__()
+        super(ResnetGenerator_attention, self).__init__()
         self.input_nc = input_nc
         self.output_nc = output_nc
         self.ngf = ngf

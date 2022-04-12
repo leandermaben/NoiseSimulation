@@ -18,8 +18,11 @@ if __name__ == '__main__':
         parameters = json.load(f)
 
     model_args = ''
-    for key, value in parameters['model_args']:
+    for key, value in parameters['model_args'].items():
         model_args+= f'--{key} {value} '
+        
+    for flag in parameters['model_flags']:
+        model_args+=f'--{flag} '
 
     if parameters['mode'] == 'train':
         os.chdir('src')

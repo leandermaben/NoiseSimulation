@@ -1,0 +1,5 @@
+================ Training Loss (Tue Apr 12 07:35:45 2022) ================
+================ Training Loss (Tue Apr 12 07:38:24 2022) ================
+================ Training Loss (Tue Apr 12 07:39:10 2022) ================
+(epoch: 1, iters: 100, time: 0.201, data: 0.179) D_A: 0.496 G_A: 0.334 cycle_A: 1.081 idt_A: 0.451 D_B: 0.658 G_B: 0.671 cycle_B: 0.983 idt_B: 0.476 
+(epoch: 1, iters: 200, time: 0.198, data: 0.001) D_A: 0.374 G_A: 0.454 cycle_A: 1.561 idt_A: 0.359 D_B: 0.363 G_B: 0.300 cycle_B: 0.797 idt_B: 0.675 

@@ -1,0 +1,24 @@
+{
+    "mode":"train",
+    "model_args":{
+        "dataroot":"data_cache",
+        "name":"Attention_demo",
+        "model":"attention_gan",
+        "dataset_mode":"audio",
+        "pool_size":50,
+        "lambda_A":10,
+        "lambda_B":10,
+        "lambda_identity":0.5,
+        "preprocess":"resize",
+        "batch_size":4,
+        "n_epochs":100,
+        "gpu_ids":0,
+        "load_size_h":128,
+        "load_size_w":128,
+        "input_nc":1,
+        "output_nc":1
+    },
+    "model_flags":[
+        "no_dropout"
+    ]
+}
